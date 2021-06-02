@@ -135,46 +135,46 @@ foreach ($levelInfoFile in $CustomLevelInfoFiles) {
     foreach ($prefix in $DifficultyRankMap) {
         $levelInfo["$prefix Valid"] = $levelInfo["$prefix Plays"] = $levelInfo["$prefix Rank"] = $levelInfo["$prefix Combo"] = $levelInfo["$prefix Score"] = $levelInfo["$prefix NP10S"] = $levelInfo["$prefix ~Duration"] = $levelInfo["$prefix ~NPS"] = $levelInfo["$prefix Notes"] = ''
     }
-
-    # TODO one-hand/90/360/lightshow _difficultyBeatmapSets
-    $standardMaps = ($levelInfoSrc._difficultyBeatmapSets | Where-Object { $_._beatmapCharacteristicName -eq 'Standard' })
-    if ($standardMaps -eq $null -or $standardMaps.Length -eq 0) {
-        Write-Information "No Standard beatmaps found, skipping $($levelInfoFile.Directory.Name)"
-        continue
-    }
-    else {
-        $standardMaps = $standardMaps._difficultyBeatmaps
-    }
     Write-Debug "info done at `t$($Stopwatch.ElapsedMilliseconds)"
-    foreach ($difficultyInfo in $standardMaps) {
-        $prefix = $DifficultyRankMap[[Math]::Floor($difficultyInfo._difficultyRank / 2)]
 
-        # read beatmap and calc stats
-        $beatmapNotes = (Load-HashedJson $hasher (Join-Path $levelInfoFile.DirectoryName $difficultyInfo._beatmapFilename) $($difficultyInfo -eq $standardMaps[$standardMaps.Length - 1]))._notes
-        $levelInfo["$prefix Notes"] = $beatmapNotes.Length
-        # TODO for real NPS, song length comes from reading _songFilename. need ffmpeg?
-        $firstNoteTime = $beatmapNotes[0]._time
-        $lastNoteTime = $beatmapNotes[$beatmapNotes.Length - 1]._time
-        $notesDuration = $lastNoteTime - $firstNoteTime
-        $levelInfo["$prefix ~NPS"] = [Math]::Round($beatmapNotes.Length / $notesDuration, 2)
-        $levelInfo["$prefix ~Duration"] = [string][Math]::Floor($notesDuration / 60) + ':' + [Math]::Floor($notesDuration % 60)
+    $standardMaps = ($levelInfoSrc._difficultyBeatmapSets | Where-Object { $_._beatmapCharacteristicName -eq 'Standard' })
+    for ($characteristicIdx = 0; $characteristicIdx -lt $levelInfoSrc._difficultyBeatmapSets.Length; $characteristicIdx++) {
+        $characteristicBeatmapSet = $levelInfoSrc._difficultyBeatmapSets[$characteristicIdx]
+        for ($difficultyIdx = 0; $difficultyIdx -lt $characteristicBeatmapSet._difficultyBeatmaps.Length; $difficultyIdx++) {
+            $difficultyInfo = $characteristicBeatmapSet._difficultyBeatmaps[$difficultyIdx]
+            $isFinalHashedFile = ($difficultyIdx -eq $characteristicBeatmapSet._difficultyBeatmaps.Length - 1) -and ($characteristicIdx -eq $levelInfoSrc._difficultyBeatmapSets.Length - 1)
+            $beatmapNotes = (Load-HashedJson $hasher (Join-Path $levelInfoFile.DirectoryName $difficultyInfo._beatmapFilename) $isFinalHashedFile)._notes
+            # TODO one-hand/90/360/lightshow _difficultyBeatmapSets
+            if ($characteristicBeatmapSet._beatmapCharacteristicName -eq 'Standard' -or $levelInfoSrc._difficultyBeatmapSets.Length -eq 1) {
+                $prefix = $DifficultyRankMap[[Math]::Floor($difficultyInfo._difficultyRank / 2)]
 
-        # highest 10-second NPS
-        # TODO use 2 indexes to look at original array instead of a new one?
-        [double]$highestSoFar = 0
-        $notes = New-Object 'System.Collections.Generic.List[float]'
-        foreach ($note in $beatmapNotes) {
-            $notes.Add($note._time)
-            $notes.RemoveAll({param($t) $t -lt $note._time - 10}) >$null
-            $notesNps = $notes.Count
-            if ($notesNps -gt $highestSoFar) {
-                $highestSoFar = $notesNps
+                # read beatmap and calc stats
+                $levelInfo["$prefix Notes"] = $beatmapNotes.Length
+                # TODO for real NPS, song length comes from reading _songFilename. need ffmpeg?
+                $firstNoteTime = $beatmapNotes[0]._time
+                $lastNoteTime = $beatmapNotes[$beatmapNotes.Length - 1]._time
+                $notesDuration = $lastNoteTime - $firstNoteTime
+                $levelInfo["$prefix ~NPS"] = [Math]::Round($beatmapNotes.Length / $notesDuration, 2)
+                # TODO only need this once, maybe keep max last and min first note times of all difficulties
+                $levelInfo["$prefix ~Duration"] = [string][Math]::Floor($notesDuration / 60) + ':' + [Math]::Floor($notesDuration % 60)
+
+                # highest 10-second NPS
+                # TODO use 2 indexes to look at original array instead of a new one?
+                [double]$highestSoFar = 0
+                $notes = New-Object 'System.Collections.Generic.List[float]'
+                foreach ($note in $beatmapNotes) {
+                    $notes.Add($note._time)
+                    $notes.RemoveAll({param($t) $t -lt $note._time - 10}) >$null
+                    $notesNps = $notes.Count
+                    if ($notesNps -gt $highestSoFar) {
+                        $highestSoFar = $notesNps
+                    }
+                }
+                $levelInfo["$prefix NP10S"] = [Math]::Round($highestSoFar / 10, 2)
+
+
             }
         }
-        $levelInfo["$prefix NP10S"] = [Math]::Round($highestSoFar / 10, 2)
-
-        
-
     }
     Write-Debug "difficulties done at $($Stopwatch.ElapsedMilliseconds)"
 
