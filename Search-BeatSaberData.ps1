@@ -7,6 +7,8 @@ The path of the directory containing Beat Saber.exe
 The 0-indexed number of player data to use in PlayerData.dat
 #>
 
+#Requires -Version 5
+
 [CmdletBinding()]
 param(
     [string]
@@ -122,7 +124,7 @@ foreach ($levelInfoFile in $CustomLevelInfoFiles) {
 
     $levelInfoSrc = Load-HashedJson $hasher $levelInfoFile.FullName
 
-    $levelInfo = @{
+    $levelInfo = [ordered]@{
         'Song' = $levelInfoSrc._songName;
         'Artist' = $levelInfoSrc._songAuthorName;
         'Mapper' = $levelInfoSrc._levelAuthorName;
@@ -201,7 +203,6 @@ foreach ($levelInfoFile in $CustomLevelInfoFiles) {
 }
 
 # TODO use -Append to avoid storing all in memory until the end?
-# TODO get the columns in a sensible order
 Remove-Item 'stats.csv'
 foreach ($lvl in $LevelStats) {
     Export-Csv -InputObject ([pscustomobject]$lvl) -Append -Path 'stats.csv'
