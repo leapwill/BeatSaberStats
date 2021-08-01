@@ -1,6 +1,18 @@
 # BeatSaberStats
 See stats about Beat Saber maps, all in one table! Produces a CSV of all difficulties of a map, including a maximum notes in any 10 seconds (NP10S) that can be a better indicator of peak difficulty than the average NPS.
 
+## Running the Script
+The script currently requires one of:
+* [PowerShell 6+](https://microsoft.com/PowerShell)
+* OR Windows PowerShell 5 with [.NET Framework 4.6+](https://dotnet.microsoft.com/download/dotnet-framework)
+  * You can check `$PSVersionTable.CLRVersion`
+
+You may have to run the below command to allow scripts to run:
+```pwsh
+PS> Set-ExecutionPolicy RemoteSigned
+```
+
+
 ## About the Data
 
 * Duration is measured as the time between the first and last notes, so it is always ≤ the song duration.

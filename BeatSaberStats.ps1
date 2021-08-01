@@ -7,8 +7,7 @@ The path of the directory containing Beat Saber.exe
 The 0-indexed number of player data to use in PlayerData.dat
 #>
 
-# TODO get down to 5, blocker is System.Security.Cryptography.Primitives
-#Requires -Version 6
+# TODO get compatibility down to Win10 default of PS5 and .NET Framework 4.0, blocker is System.Security.Cryptography.Primitives
 
 [CmdletBinding()]
 param(
