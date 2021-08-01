@@ -126,12 +126,13 @@ foreach ($levelInfoFile in $CustomLevelInfoFiles) {
 
     $levelInfoSrc = Load-HashedJson $hasher $levelInfoFile.FullName
 
+    # TODO custom dependencies (e.g. Chroma): $difficultyInfo._requirements and $levelInfoSrc._suggestions
     $levelInfo = [ordered]@{
         'Song' = $levelInfoSrc._songName;
         'Artist' = $levelInfoSrc._songAuthorName;
         'Mapper' = $levelInfoSrc._levelAuthorName;
         'BPM' = $levelInfoSrc._beatsPerMinute;
-        'Envrionment' = $levelInfoSrc._environmentName;
+        'Environment' = $levelInfoSrc._environmentName;
         '~Duration' = [double]0;
     }
     # setup object to be the same every level
