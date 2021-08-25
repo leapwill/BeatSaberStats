@@ -22,7 +22,7 @@ param(
     [ValidateRange(1,8)]
     [AllowNull()]
     [int]
-    $Threads
+    $Threads = $null
 )
 
 Set-StrictMode -Version Latest
@@ -67,7 +67,7 @@ if (-not ($PlayerData.Length -ge $PlayerNumber + 1)) {
 }
 $PlayerData = $PlayerData[$PlayerNumber]
 
-if ($Threads = $null) {
+if ($Threads -eq 0) {
     if ($Env:OS -eq 'Windows_NT') {
         $Threads = [Math]::Min((Get-CIMInstance -Class CIM_Processor).NumberOfLogicalProcessors, 8)
     }
@@ -98,12 +98,14 @@ $LevelInfoFilesQueue = New-Object 'System.Collections.Concurrent.ConcurrentQueue
 function ForEach-Thread {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true,Position=1)]
+        [Parameter(Mandatory=$true,Position=0)]
         [System.Collections.Concurrent.ConcurrentQueue[System.IO.FileInfo]]
         $Queue,
-        [Parameter(Mandatory=$true,Position=2)]
+        [Parameter(Mandatory=$true,Position=1)]
         [AllowEmptyCollection()]
-        [System.Collections.Generic.List[object]]$LevelStats
+        [System.Collections.Generic.List[object]]$LevelStats,
+        [Parameter(Mandatory=$true,Position=2)]
+        $PlayerData
     )
 
     #region constants but in the runspace
@@ -164,7 +166,9 @@ function ForEach-Thread {
             [Parameter(Mandatory=$true,Position=2)]
             [AllowEmptyCollection()]
             [System.Collections.Generic.List[object]]
-            $LevelStats
+            $LevelStats,
+            [Parameter(Mandatory=$true,Position=3)]
+            $PlayerData
         )
         Write-Verbose "processing $($levelInfoFile.Directory.Name)"
         $Stopwatch.Restart()
@@ -263,7 +267,7 @@ function ForEach-Thread {
     $Stopwatch = New-Object System.Diagnostics.Stopwatch
     [System.IO.FileInfo]$CurrentFile = $null;
     while ($Queue.TryDequeue([ref]$CurrentFile)) {
-        Process-SingleLevel $CurrentFile $Stopwatch $LevelStats -Verbose:($PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent -eq $true) -Debug:($PSCmdlet.MyInvocation.BoundParameters['Debug'].IsPresent -eq $true)
+        Process-SingleLevel $CurrentFile $Stopwatch $LevelStats $PlayerData -Verbose:($PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent -eq $true) -Debug:($PSCmdlet.MyInvocation.BoundParameters['Debug'].IsPresent -eq $true)
     }
 }
 
@@ -277,6 +281,7 @@ for ($i = 0; $i -lt $Threads; $i++) {
     $null = $poolShell.AddScript(${Function:ForEach-Thread}.ToString())
     $null = $poolShell.AddParameter('Queue', $LevelInfoFilesQueue)
     $null = $poolShell.AddParameter('LevelStats', $LevelStats)
+    $null = $poolShell.AddParameter('PlayerData', $PlayerData)
     $threadHandles[$poolShell] = $poolShell.BeginInvoke()
 }
 
