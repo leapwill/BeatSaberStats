@@ -189,6 +189,8 @@ function ForEach-Thread {
             $levelInfo["$prefix Valid"] = $levelInfo["$prefix Plays"] = $levelInfo["$prefix Rank"] = $levelInfo["$prefix Combo"] = $levelInfo["$prefix Score"] = $levelInfo["$prefix NP10S"] = $levelInfo["$prefix ~NPS"] = $levelInfo["$prefix Notes"] = ''
         }
         Write-Debug "info done at `t$($Stopwatch.ElapsedMilliseconds)"
+        [double]$tenSecondsInBeats = $levelInfo['BPM'] / 6
+        $np10sPredicate = [Predicate[double]]{param($t) $t -lt $note._time - $tenSecondsInBeats}
 
         # for each characteristic (e.g. standard, one-hand, 90deg, lawless, etc.)
         for ($characteristicIdx = 0; $characteristicIdx -lt $levelInfoSrc._difficultyBeatmapSets.Length; $characteristicIdx++) {
@@ -216,10 +218,9 @@ function ForEach-Thread {
                     # TODO use 2 indexes to look at original array instead of a new one?
                     [double]$highestSoFar = 0
                     $notes = New-Object 'System.Collections.Generic.List[double]'
-                    [double]$tenSecondsInBeats = $levelInfo['BPM'] / 6
                     foreach ($note in $beatmapNotes) {
                         $notes.Add($note._time)
-                        $notes.RemoveAll({param($t) $t -lt $note._time - $tenSecondsInBeats}) >$null
+                        $notes.RemoveAll($np10sPredicate) >$null
                         $notesNps = $notes.Count
                         if ($notesNps -gt $highestSoFar) {
                             $highestSoFar = $notesNps
