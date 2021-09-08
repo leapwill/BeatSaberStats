@@ -272,24 +272,37 @@ function ForEach-Thread {
     }
 }
 
+# start threads and wait for all to finish
 $pool = [RunspaceFactory]::CreateRunspacePool(1, $Threads)
 $pool.Open()
 $threadHandles = @{}
 Write-Debug "using $Threads threads"
-for ($i = 0; $i -lt $Threads; $i++) {
-    $poolShell = [PowerShell]::Create()
-    $poolShell.RunspacePool = $pool
-    $null = $poolShell.AddScript(${Function:ForEach-Thread}.ToString())
-    $null = $poolShell.AddParameter('Queue', $LevelInfoFilesQueue)
-    $null = $poolShell.AddParameter('LevelStats', $LevelStats)
-    $null = $poolShell.AddParameter('PlayerData', $PlayerData)
-    $threadHandles[$poolShell] = $poolShell.BeginInvoke()
+# if there's only 1 thread, don't bother with the runspace (also easier debugging)
+if ($Threads -eq 1) {
+    ForEach-Thread -Queue $LevelInfoFilesQueue -LevelStats $LevelStats -PlayerData $PlayerData -DifficultyRankMap $DifficultyRankMap -ScoreRankMap $ScoreRankMap -LevelInfoConstructor ${Function:Construct-LevelInfo} -Verbose:$IsVerbose -Debug:$IsDebug
 }
+else {
+    for ($i = 0; $i -lt $Threads; $i++) {
+        $poolShell = [PowerShell]::Create()
+        $poolShell.RunspacePool = $pool
+        $poolShell.AddScript(${Function:ForEach-Thread}.ToString()) > $null
+        $poolShell.AddParameter('Queue', $LevelInfoFilesQueue) > $null
+        $poolShell.AddParameter('LevelStats', $LevelStats) > $null
+        $poolShell.AddParameter('PlayerData', $PlayerData) > $null
+        $poolShell.AddParameter('DifficultyRankMap', $DifficultyRankMap) > $null
+        $poolShell.AddParameter('ScoreRankMap', $ScoreRankMap) > $null
+        $poolShell.AddParameter('LevelInfoConstructor', ${Function:Construct-LevelInfo}) > $null
+        # TODO fix this
+        $poolShell.AddParameter('Verbose', $IsVerbose) > $null
+        $poolShell.AddParameter('Debug', $IsDebug) > $null
 
-foreach ($shell in $threadHandles.Keys) {
-    [System.IAsyncResult]$handle = $threadHandles[$shell]
-    $shell.EndInvoke($handle)
-    $shell.Dispose()
+        $threadHandles[$poolShell] = $poolShell.BeginInvoke()
+    }
+    foreach ($shell in $threadHandles.Keys) {
+        [System.IAsyncResult]$handle = $threadHandles[$shell]
+        $shell.EndInvoke($handle)
+        $shell.Dispose()
+    }
 }
 
 #region output
