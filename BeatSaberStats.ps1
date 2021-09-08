@@ -82,17 +82,51 @@ Add-Type -AssemblyName 'System.Security.Cryptography.Primitives'
 Add-Type -AssemblyName 'System.Collections.Concurrent'
 #endregion
 
-
-
 #region constants
+$ErrorActionPreference = 'Stop'
 $CustomLevelsPath = Join-Path $LevelsPath 'CustomLevels'
 $CustomLevelInfoFiles = Get-ChildItem $CustomLevelsPath -Recurse -Filter 'info.dat'
 $LevelStats = New-Object 'System.Collections.Generic.List[object]' -ArgumentList $CustomLevelInfoFiles.Length
 $IsVerbose = ($PSCmdlet.MyInvocation.BoundParameters['Verbose'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent -eq $true)
 $IsDebug = ($PSCmdlet.MyInvocation.BoundParameters['Debug'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Debug'].IsPresent -eq $true)
+$DifficultyRankMap = @(
+    'Y',
+    'N',
+    'H',
+    'E',
+    'E+'
+)
+$ScoreRankMap = @(
+    'E',
+    'D',
+    'C',
+    'B',
+    'A',
+    'S',
+    'SS',
+    'SSS'
+)
 #endregion
 # TODO load vanilla levels data (what format?)
 # TODO handle zipped CustomWIPLevels
+
+#region small utility functions
+function Construct-LevelInfo {
+    $levelInfo = [ordered]@{
+        'Song' = '';
+        'Artist' = '';
+        'Mapper' = '';
+        'BPM' = '';
+        'Environment' = '';
+        '~Duration' = [double]0;
+    }
+    # setup object to be the same every level
+    foreach ($prefix in $DifficultyRankMap) {
+        $levelInfo["$prefix Valid"] = $levelInfo["$prefix Plays"] = $levelInfo["$prefix Rank"] = $levelInfo["$prefix Combo"] = $levelInfo["$prefix Score"] = $levelInfo["$prefix NP10S"] = $levelInfo["$prefix ~NPS"] = $levelInfo["$prefix Notes"] = ''
+    }
+    return $levelInfo
+}
+#endregion
 
 $LevelInfoFilesQueue = New-Object 'System.Collections.Concurrent.ConcurrentQueue[System.IO.FileInfo]' -ArgumentList (,[System.IO.FileInfo[]]$CustomLevelInfoFiles)
 function ForEach-Thread {
@@ -103,30 +137,20 @@ function ForEach-Thread {
         $Queue,
         [Parameter(Mandatory=$true,Position=1)]
         [AllowEmptyCollection()]
-        [System.Collections.Generic.List[object]]$LevelStats,
+        [System.Collections.Generic.List[object]]
+        $LevelStats,
         [Parameter(Mandatory=$true,Position=2)]
-        $PlayerData
+        $PlayerData,
+        [Parameter(Mandatory=$true,Position=3)]
+        [string[]]
+        $DifficultyRankMap,
+        [Parameter(Mandatory=$true,Position=4)]
+        [string[]]
+        $ScoreRankMap,
+        [Parameter(Mandatory=$true,Position=5)]
+        [ScriptBlock]
+        $LevelInfoConstructor
     )
-
-    #region constants but in the runspace
-    $DifficultyRankMap = @(
-        'Y',
-        'N',
-        'H',
-        'E',
-        'E+'
-    )
-    $ScoreRankMap = @(
-        'E',
-        'D',
-        'C',
-        'B',
-        'A',
-        'S',
-        'SS',
-        'SSS'
-    )
-    #endregion
 
     #region functions to keep scopes small for memory
     # calculate hash to find level ID in save file
@@ -176,18 +200,12 @@ function ForEach-Thread {
         $levelInfoSrc = Load-HashedJson $hasher $levelInfoFile.FullName
 
         # TODO custom dependencies (e.g. Chroma): $difficultyInfo._requirements and $levelInfoSrc._suggestions
-        $levelInfo = [ordered]@{
-            'Song' = $levelInfoSrc._songName;
-            'Artist' = $levelInfoSrc._songAuthorName;
-            'Mapper' = $levelInfoSrc._levelAuthorName;
-            'BPM' = $levelInfoSrc._beatsPerMinute;
-            'Environment' = $levelInfoSrc._environmentName;
-            '~Duration' = [double]0;
-        }
-        # setup object to be the same every level
-        foreach ($prefix in $DifficultyRankMap) {
-            $levelInfo["$prefix Valid"] = $levelInfo["$prefix Plays"] = $levelInfo["$prefix Rank"] = $levelInfo["$prefix Combo"] = $levelInfo["$prefix Score"] = $levelInfo["$prefix NP10S"] = $levelInfo["$prefix ~NPS"] = $levelInfo["$prefix Notes"] = ''
-        }
+        $levelInfo = Invoke-Command -ScriptBlock $LevelInfoConstructor
+        $levelInfo['Song'] = $levelInfoSrc._songName;
+        $levelInfo['Artist'] = $levelInfoSrc._songAuthorName;
+        $levelInfo['Mapper'] = $levelInfoSrc._levelAuthorName;
+        $levelInfo['BPM'] = $levelInfoSrc._beatsPerMinute;
+        $levelInfo['Environment'] = $levelInfoSrc._environmentName;
         Write-Debug "info done at `t$($Stopwatch.ElapsedMilliseconds)"
         [double]$tenSecondsInBeats = $levelInfo['BPM'] / 6
         $np10sPredicate = [Predicate[double]]{param($t) $t -lt $note._time - $tenSecondsInBeats}
@@ -267,8 +285,12 @@ function ForEach-Thread {
 
     $Stopwatch = New-Object System.Diagnostics.Stopwatch
     [System.IO.FileInfo]$CurrentFile = $null;
+    # TODO are these necessary or will it inherit b/c it's still in the runspace?
+    $IsVerbose = ($PSCmdlet.MyInvocation.BoundParameters['Verbose'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent -eq $true)
+    $IsDebug = ($PSCmdlet.MyInvocation.BoundParameters['Debug'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Debug'].IsPresent -eq $true)
+
     while ($Queue.TryDequeue([ref]$CurrentFile)) {
-        Process-SingleLevel $CurrentFile $Stopwatch $LevelStats $PlayerData -Verbose:($PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent -eq $true) -Debug:($PSCmdlet.MyInvocation.BoundParameters['Debug'].IsPresent -eq $true)
+        Process-SingleLevel $CurrentFile $Stopwatch $LevelStats $PlayerData -Verbose:($PSCmdlet.MyInvocation.BoundParameters['Verbose'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent -eq $true) -Debug:($PSCmdlet.MyInvocation.BoundParameters['Debug'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Debug'].IsPresent -eq $true)
     }
 }
 
@@ -304,6 +326,34 @@ else {
         $shell.Dispose()
     }
 }
+
+
+# get score info for levels not already processed (vanilla or deleted custom levels)
+$Stopwatch = New-Object System.Diagnostics.Stopwatch
+$Stopwatch.Restart()
+$processedLevelIds = New-Object -Type 'System.Collections.Generic.HashSet[string]' -ArgumentList  (,[string[]]($LevelStats | ForEach-Object {$_['ID']}))
+$unprocessedScoresByLevel = $PlayerData.levelsStatsData | Where-Object {$_.beatmapCharacteristicName -eq 'Standard' -and -not $processedLevelIds.Contains($_.levelId)} | Group-Object -Property levelId -AsHashTable
+foreach ($entry in $unprocessedScoresByLevel.GetEnumerator()) {
+    # TODO dedupe this with the code inside the thread
+    $levelInfo = Construct-LevelInfo
+    $levelInfo['ID'] = $entry.Name
+    foreach ($score in $entry.Value) {
+        $prefix = $DifficultyRankMap[[Math]::Floor($score.difficulty)]
+        $levelInfo["$prefix Score"] = $score.highScore
+        if ($score.fullCombo) {
+            $levelInfo["$prefix Combo"] = 'FC'
+        }
+        else {
+            $levelInfo["$prefix Combo"] = $score.maxCombo
+        }
+        $levelInfo["$prefix Rank"] = $ScoreRankMap[$score.maxRank]
+        $levelInfo["$prefix Plays"] = $score.playCount
+        $levelInfo["$prefix Valid"] = $score.validScore
+    }
+    $LevelStats.Add($levelInfo)
+}
+Write-Debug "remaining scores done in `t$($Stopwatch.ElapsedMilliseconds)"
+
 
 #region output
 if (Test-Path 'stats.csv') {
