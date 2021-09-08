@@ -7,6 +7,8 @@ The path of the directory containing Beat Saber.exe
 The 0-indexed number of player data to use in PlayerData.dat
 .PARAMETER Threads
 The number of threads to use for processing levels. Defaults to the number of logical processors on the system but capped at 8 due to sharply diminishing returns.
+.PARAMETER OutFile
+The file to use for CSV output. Defaults to 'stats.csv'. If the file already exists, it is removed and overwritten. If it is null or empty, then write the list directly to standard out (for piping).
 #>
 
 # TODO get compatibility down to Win10 default of PS5 and .NET Framework 4.0, blocker is System.Security.Cryptography.Primitives
@@ -22,7 +24,9 @@ param(
     [ValidateRange(1,8)]
     [AllowNull()]
     [int]
-    $Threads = $null
+    $Threads = $null,
+    [string]
+    $OutFile = 'stats.csv'
 )
 
 Set-StrictMode -Version Latest
@@ -356,10 +360,15 @@ Write-Debug "remaining scores done in `t$($Stopwatch.ElapsedMilliseconds)"
 
 
 #region output
-if (Test-Path 'stats.csv') {
-    Remove-Item 'stats.csv'
+if ($OutFile -eq '') {
+    Write-Output $LevelStats
 }
-foreach ($lvl in $LevelStats) {
-    Export-Csv -InputObject ([pscustomobject]$lvl) -Append -Path 'stats.csv'
+else {
+    if (Test-Path $OutFile) {
+        Remove-Item $OutFile
+    }
+    foreach ($lvl in $LevelStats) {
+        Export-Csv -InputObject ([pscustomobject]$lvl) -Append -Path $OutFile
+    }
 }
 #endregion
