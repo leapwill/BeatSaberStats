@@ -9,6 +9,8 @@ The 0-indexed number of player data to use in PlayerData.dat
 The number of threads to use for processing levels. Defaults to the number of logical processors on the system but capped at 8 due to sharply diminishing returns.
 .PARAMETER OutFile
 The file to use for CSV output. Defaults to 'stats.csv'. If the file already exists, it is removed and overwritten. If it is null or empty, then write the list directly to standard out (for piping).
+.PARAMETER OutMode
+Defaults to 'diffrow', where each difficulty for each level gets a row (level information is duplicated). Can also be 'levelrow', where each level gets a row and difficulty-dependent columns are prefixed with a letter to indicate the difficulty (1.x style).
 #>
 
 # TODO get compatibility down to Win10 default of PS5 and .NET Framework 4.0, blocker is System.Security.Cryptography.Primitives
@@ -26,7 +28,10 @@ param(
     [int]
     $Threads = $null,
     [string]
-    $OutFile = 'stats.csv'
+    $OutFile = 'stats.csv',
+    [ValidateSet('levelrow', 'diffrow')]
+    [string]
+    $OutMode = 'diffrow'
 )
 
 Set-StrictMode -Version Latest
@@ -367,8 +372,48 @@ else {
     if (Test-Path $OutFile) {
         Remove-Item $OutFile
     }
-    foreach ($lvl in $LevelStats) {
-        Export-Csv -InputObject ([pscustomobject]$lvl) -Append -Path $OutFile
+    if ($OutMode -eq 'levelrow') {
+        foreach ($lvl in $LevelStats) {
+            Export-Csv -InputObject ([pscustomobject]$lvl) -Append -Path $OutFile
+        }
+    }
+    elseif ($OutMode -eq 'diffrow') {
+        foreach ($lvl in $LevelStats) {
+            $DifficultyRankNameMap = @{
+                'Y' = 'Easy';
+                'N' = 'Normal';
+                'H' = 'Hard';
+                'E' = 'Expert';
+                'E+' = 'Expert+';
+            }
+            foreach ($prefix in $DifficultyRankMap) {
+                if ($lvl["$prefix Notes"] -eq $null -and $lvl["$prefix Score"] -eq $null) {
+                    continue
+                }
+                $lvlDiff = [pscustomobject][ordered]@{
+                    'Song' = $lvl['Song'];
+                    'Artist' = $lvl['Artist'];
+                    'Mapper' = $lvl['Mapper'];
+                    'BPM' = $lvl['BPM'];
+                    'Environment' = $lvl['Environment'];
+                    '~Duration' = $lvl['~Duration'];
+                    'Difficulty' = $DifficultyRankNameMap[$prefix]
+                    'Notes' = $lvl["$prefix Notes"];
+                    '~NPS' = $lvl["$prefix ~NPS"];
+                    'NP10S' = $lvl["$prefix NP10S"];
+                    'Score' = $lvl["$prefix Score"];
+                    'Combo' = $lvl["$prefix Combo"];
+                    'Rank' = $lvl["$prefix Rank"];
+                    'Plays' = $lvl["$prefix Plays"];
+                    'Valid' = $lvl["$prefix Valid"];
+                    'ID' = $lvl['ID'];
+                }
+                Export-Csv -InputObject $lvlDiff -Append -Path $OutFile
+            }
+        }
+    }
+    else {
+        Write-Error 'no output!'
     }
 }
 #endregion
