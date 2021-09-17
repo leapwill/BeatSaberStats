@@ -186,6 +186,9 @@ function ForEach-Thread {
         }
         return ConvertFrom-Json $fileRaw
     }
+    $ThreadId = [System.Threading.Thread]::CurrentThread.ManagedThreadId
+    $numProcessedLevels = 0
+
 
     function Process-SingleLevel {
         [CmdletBinding()]
@@ -203,7 +206,7 @@ function ForEach-Thread {
             [Parameter(Mandatory=$true,Position=3)]
             $PlayerData
         )
-        Write-Verbose "processing $($levelInfoFile.Directory.Name)"
+        Write-Verbose "T$ThreadId processing $($levelInfoFile.Directory.Name)"
         $Stopwatch.Restart()
         $hasher = [System.Security.Cryptography.SHA1]::Create()
         $levelInfoSrc = Load-HashedJson $hasher $levelInfoFile.FullName
@@ -215,7 +218,7 @@ function ForEach-Thread {
         $levelInfo['Mapper'] = $levelInfoSrc._levelAuthorName;
         $levelInfo['BPM'] = $levelInfoSrc._beatsPerMinute;
         $levelInfo['Environment'] = $levelInfoSrc._environmentName;
-        Write-Debug "info done at `t$($Stopwatch.ElapsedMilliseconds)"
+        Write-Debug "T$ThreadId info done at `t$($Stopwatch.ElapsedMilliseconds)"
         [double]$tenSecondsInBeats = $levelInfo['BPM'] / 6
         $np10sPredicate = [Predicate[double]]{param($t) $t -lt $note._time - $tenSecondsInBeats}
 
@@ -259,7 +262,7 @@ function ForEach-Thread {
                 }
             }
         }
-        Write-Debug "difficulties done at $($Stopwatch.ElapsedMilliseconds)"
+        Write-Debug "T$ThreadId difficulties done at $($Stopwatch.ElapsedMilliseconds)"
 
         # format song duration as longest of all difficulties
         $levelInfo['~Duration'] = [string][Math]::Floor($levelInfo['~Duration'] / 60) + ':' + [Math]::Floor($levelInfo['~Duration'] % 60)
@@ -284,10 +287,10 @@ function ForEach-Thread {
             $levelInfo["$prefix Plays"] = $score.playCount
             $levelInfo["$prefix Valid"] = $score.validScore
         }
-        Write-Debug "scores done at `t$($Stopwatch.ElapsedMilliseconds)"
+        Write-Debug "T$ThreadId scores done at `t$($Stopwatch.ElapsedMilliseconds)"
 
         $LevelStats.Add($levelInfo)
-        Write-Verbose "processed $levelId"
+        Write-Verbose "T$ThreadId processed $levelId"
 
     }
     #endregion
@@ -300,7 +303,9 @@ function ForEach-Thread {
 
     while ($Queue.TryDequeue([ref]$CurrentFile)) {
         Process-SingleLevel $CurrentFile $Stopwatch $LevelStats $PlayerData -Verbose:($PSCmdlet.MyInvocation.BoundParameters['Verbose'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent -eq $true) -Debug:($PSCmdlet.MyInvocation.BoundParameters['Debug'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Debug'].IsPresent -eq $true)
+        $numProcessedLevels++
     }
+    Write-Verbose "T$ThreadId processed $numProcessedLevels levels"
 }
 
 # start threads and wait for all to finish
