@@ -159,7 +159,10 @@ function ForEach-Thread {
         $ScoreRankMap,
         [Parameter(Mandatory=$true,Position=5)]
         [ScriptBlock]
-        $LevelInfoConstructor
+        $LevelInfoConstructor,
+        [Parameter(Mandatory=$true,Position=6)]
+        [System.Threading.Mutex]
+        $Mutex
     )
 
     #region functions to keep scopes small for memory
@@ -213,7 +216,14 @@ function ForEach-Thread {
         $levelInfoSrc = Load-HashedJson $hasher $levelInfoFile.FullName
 
         # TODO custom dependencies (e.g. Chroma): $difficultyInfo._requirements and $levelInfoSrc._suggestions
-        $levelInfo = Invoke-Command -ScriptBlock $LevelInfoConstructor
+        try {
+            # without the mutex, some threads will sometimes miss the invocation and $levelInfo will be $null
+            $Mutex.WaitOne() > $null
+            $levelInfo = Invoke-Command -ScriptBlock $LevelInfoConstructor
+        }
+        finally {
+            $Mutex.ReleaseMutex()
+        }
         $levelInfo['Song'] = $levelInfoSrc._songName;
         $levelInfo['Artist'] = $levelInfoSrc._songAuthorName;
         $levelInfo['Mapper'] = $levelInfoSrc._levelAuthorName;
@@ -310,13 +320,14 @@ function ForEach-Thread {
 }
 
 # start threads and wait for all to finish
+$Mutex = New-Object System.Threading.Mutex
 $pool = [RunspaceFactory]::CreateRunspacePool(1, $Threads)
 $pool.Open()
 $threadHandles = @{}
 Write-Debug "using $Threads threads"
 # if there's only 1 thread, don't bother with the runspace (also easier debugging)
 if ($Threads -eq 1) {
-    ForEach-Thread -Queue $LevelInfoFilesQueue -LevelStats $LevelStats -PlayerData $PlayerData -DifficultyRankMap $DifficultyRankMap -ScoreRankMap $ScoreRankMap -LevelInfoConstructor ${Function:Construct-LevelInfo} -Verbose:$IsVerbose -Debug:$IsDebug
+    ForEach-Thread -Queue $LevelInfoFilesQueue -LevelStats $LevelStats -PlayerData $PlayerData -DifficultyRankMap $DifficultyRankMap -ScoreRankMap $ScoreRankMap -LevelInfoConstructor ${Function:Construct-LevelInfo} -Mutex $Mutex -Verbose:$IsVerbose -Debug:$IsDebug
 }
 else {
     for ($i = 0; $i -lt $Threads; $i++) {
@@ -329,6 +340,7 @@ else {
         $poolShell.AddParameter('DifficultyRankMap', $DifficultyRankMap) > $null
         $poolShell.AddParameter('ScoreRankMap', $ScoreRankMap) > $null
         $poolShell.AddParameter('LevelInfoConstructor', ${Function:Construct-LevelInfo}) > $null
+        $poolShell.AddParameter('Mutex', $Mutex) > $null
         # TODO fix this
         $poolShell.AddParameter('Verbose', $IsVerbose) > $null
         $poolShell.AddParameter('Debug', $IsDebug) > $null
