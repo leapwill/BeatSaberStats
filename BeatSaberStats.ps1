@@ -98,14 +98,14 @@ $CustomLevelInfoFiles = Get-ChildItem $CustomLevelsPath -Recurse -Filter 'info.d
 $LevelStats = New-Object 'System.Collections.Generic.List[object]' -ArgumentList $CustomLevelInfoFiles.Length
 $IsVerbose = ($PSCmdlet.MyInvocation.BoundParameters['Verbose'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent -eq $true)
 $IsDebug = ($PSCmdlet.MyInvocation.BoundParameters['Debug'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Debug'].IsPresent -eq $true)
-$DifficultyRankMap = @(
+$DifficultyRankMap = [string[]]@(
     'Y',
     'N',
     'H',
     'E',
     'E+'
 )
-$ScoreRankMap = @(
+$ScoreRankMap = [string[]]@(
     'E',
     'D',
     'C',
@@ -121,17 +121,18 @@ $ScoreRankMap = @(
 
 #region small utility functions
 function Construct-LevelInfo {
+    # it's easier to pass a function into a runspace than a class
     $levelInfo = [ordered]@{
-        'Song' = '';
-        'Artist' = '';
-        'Mapper' = '';
-        'BPM' = '';
-        'Environment' = '';
+        'Song' = $null;
+        'Artist' = $null;
+        'Mapper' = $null;
+        'BPM' = $null;
+        'Environment' = $null;
         '~Duration' = [double]0;
     }
     # setup object to be the same every level
     foreach ($prefix in $DifficultyRankMap) {
-        $levelInfo["$prefix Valid"] = $levelInfo["$prefix Plays"] = $levelInfo["$prefix Rank"] = $levelInfo["$prefix Combo"] = $levelInfo["$prefix Score"] = $levelInfo["$prefix NP10S"] = $levelInfo["$prefix ~NPS"] = $levelInfo["$prefix Notes"] = ''
+        $levelInfo["$prefix Valid"] = $levelInfo["$prefix Plays"] = $levelInfo["$prefix Rank"] = $levelInfo["$prefix Combo"] = $levelInfo["$prefix Score"] = $levelInfo["$prefix NP10S"] = $levelInfo["$prefix ~NPS"] = $levelInfo["$prefix Notes"] = $null
     }
     return $levelInfo
 }
