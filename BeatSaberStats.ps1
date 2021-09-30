@@ -276,7 +276,7 @@ function ForEach-Thread {
         Write-Debug "T$ThreadId difficulties done at $($Stopwatch.ElapsedMilliseconds)"
 
         # format song duration as longest of all difficulties
-        $levelInfo['~Duration'] = [string][Math]::Floor($levelInfo['~Duration'] / 60) + ':' + [Math]::Floor($levelInfo['~Duration'] % 60)
+        $levelInfo['~Duration'] = [string][Math]::Floor($levelInfo['~Duration'] / 60).ToString().PadLeft(2, '0') + ':' + [Math]::Floor($levelInfo['~Duration'] % 60).ToString().PadLeft(2, '0')
 
         # read save file for scores and stuff
         $hashStr = [System.BitConverter]::ToString($hasher.Hash) -Replace '-',''
