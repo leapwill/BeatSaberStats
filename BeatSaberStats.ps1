@@ -116,7 +116,7 @@ $ScoreRankMap = [string[]]@(
     'SSS'
 )
 #endregion
-# TODO load vanilla levels data (what format?)
+# TODO load OST levels data (what format?)
 # TODO handle zipped CustomWIPLevels
 
 #region small utility functions
@@ -354,12 +354,45 @@ else {
     }
 }
 
-
-# get score info for levels not already processed (vanilla or deleted custom levels)
+#region post-threaded work
 $Stopwatch = New-Object System.Diagnostics.Stopwatch
+# add provided info for OST levels
 $Stopwatch.Restart()
 $processedLevelIds = New-Object -Type 'System.Collections.Generic.HashSet[string]' -ArgumentList  (,[string[]]($LevelStats | ForEach-Object {$_['ID']}))
 $unprocessedScoresByLevel = $PlayerData.levelsStatsData | Where-Object {$_.beatmapCharacteristicName -eq 'Standard' -and -not $processedLevelIds.Contains($_.levelId)} | Group-Object -Property levelId -AsHashTable
+if (Test-Path 'ost.csv') {
+    foreach ($csvInfo in Import-Csv -Path ost.csv) {
+        # convert from PSCustomObject to LevelInfo so key lookup works
+        $levelInfo = Construct-LevelInfo
+        foreach ($member in ($csvInfo | Get-Member | Where-Object { $_.MemberType -eq 'NoteProperty' })) {
+            $levelInfo[$member.Name] = $csvInfo."$($member.Name)"
+        }
+        # TODO qqq PICKUP get scores, maybe get unprocessedLevelIds before this and remove as they are processed
+        $scores = $unprocessedScoresByLevel[$levelInfo['ID']]
+        foreach ($score in $scores) {
+            $prefix = $DifficultyRankMap[[Math]::Floor($score.difficulty)]
+            $levelInfo["$prefix Score"] = $score.highScore
+            if ($score.fullCombo) {
+                $levelInfo["$prefix Combo"] = 'FC'
+            }
+            else {
+                $levelInfo["$prefix Combo"] = $score.maxCombo
+            }
+            $levelInfo["$prefix Rank"] = $ScoreRankMap[$score.maxRank]
+            $levelInfo["$prefix Plays"] = $score.playCount
+            $levelInfo["$prefix Valid"] = $score.validScore
+        }
+        $unprocessedScoresByLevel.Remove($levelInfo['ID'])
+        $LevelStats.Add($levelInfo)
+    }
+}
+else {
+    Write-Warning 'No ost.csv found, OST level info will be scores only'
+}
+Write-Debug "OST levels done in `t$($Stopwatch.ElapsedMilliseconds)"
+
+# get score info for levels not already processed (DLC or deleted custom levels)
+$Stopwatch.Restart()
 foreach ($entry in $unprocessedScoresByLevel.GetEnumerator()) {
     # TODO dedupe this with the code inside the thread
     $levelInfo = Construct-LevelInfo
@@ -380,7 +413,7 @@ foreach ($entry in $unprocessedScoresByLevel.GetEnumerator()) {
     $LevelStats.Add($levelInfo)
 }
 Write-Debug "remaining scores done in `t$($Stopwatch.ElapsedMilliseconds)"
-
+#endregion
 
 #region output
 if ($OutFile -eq '') {
