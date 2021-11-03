@@ -241,6 +241,9 @@ function ForEach-Thread {
                 $difficultyInfo = $characteristicBeatmapSet._difficultyBeatmaps[$difficultyIdx]
                 $isFinalHashedFile = ($difficultyIdx -eq $characteristicBeatmapSet._difficultyBeatmaps.Length - 1) -and ($characteristicIdx -eq $levelInfoSrc._difficultyBeatmapSets.Length - 1)
                 $beatmapNotes = (Load-HashedJson $hasher (Join-Path $levelInfoFile.DirectoryName $difficultyInfo._beatmapFilename) $isFinalHashedFile)._notes
+                if ($beatmapNotes.Length -eq 0) {
+                    continue
+                }
                 # TODO one-hand/90/360/lightshow _difficultyBeatmapSets
                 if ($characteristicBeatmapSet._beatmapCharacteristicName -eq 'Standard' -or $levelInfoSrc._difficultyBeatmapSets.Length -eq 1) {
                     $prefix = $DifficultyRankMap[[Math]::Floor($difficultyInfo._difficultyRank / 2)]
