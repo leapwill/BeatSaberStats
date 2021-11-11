@@ -180,7 +180,7 @@ function ForEach-Thread {
             [switch]
             $IsFinal
         )
-        $fileRaw = Get-Content $Path -Raw
+        $fileRaw = Get-Content ($Path -Replace '([\[\]])','`$1') -Raw
         $fileBytes = [System.Text.Encoding]::UTF8.GetBytes($fileRaw)
         if ($IsFinal) {
             $Hasher.TransformFinalBlock($fileBytes, 0, $fileBytes.Length) >$null
@@ -224,11 +224,11 @@ function ForEach-Thread {
         finally {
             $Mutex.ReleaseMutex()
         }
-        $levelInfo['Song'] = $levelInfoSrc._songName;
-        $levelInfo['Artist'] = $levelInfoSrc._songAuthorName;
-        $levelInfo['Mapper'] = $levelInfoSrc._levelAuthorName;
-        $levelInfo['BPM'] = $levelInfoSrc._beatsPerMinute;
-        $levelInfo['Environment'] = $levelInfoSrc._environmentName;
+        $levelInfo['Song'] = $levelInfoSrc._songName
+        $levelInfo['Artist'] = $levelInfoSrc._songAuthorName
+        $levelInfo['Mapper'] = $levelInfoSrc._levelAuthorName
+        $levelInfo['BPM'] = $levelInfoSrc._beatsPerMinute
+        $levelInfo['Environment'] = $levelInfoSrc._environmentName
         Write-Debug "T$ThreadId info done at `t$($Stopwatch.ElapsedMilliseconds)"
         [double]$tenSecondsInBeats = $levelInfo['BPM'] / 6
         $np10sPredicate = [Predicate[double]]{param($t) $t -lt $note._time - $tenSecondsInBeats}
@@ -310,7 +310,7 @@ function ForEach-Thread {
     #endregion
 
     $Stopwatch = New-Object System.Diagnostics.Stopwatch
-    [System.IO.FileInfo]$CurrentFile = $null;
+    [System.IO.FileInfo]$CurrentFile = $null
     # TODO are these necessary or will it inherit b/c it's still in the runspace?
     $IsVerbose = ($PSCmdlet.MyInvocation.BoundParameters['Verbose'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Verbose'].IsPresent -eq $true)
     $IsDebug = ($PSCmdlet.MyInvocation.BoundParameters['Debug'] -ne $null -and $PSCmdlet.MyInvocation.BoundParameters['Debug'].IsPresent -eq $true)
@@ -370,7 +370,6 @@ if (Test-Path 'ost.csv') {
         foreach ($member in ($csvInfo | Get-Member | Where-Object { $_.MemberType -eq 'NoteProperty' })) {
             $levelInfo[$member.Name] = $csvInfo."$($member.Name)"
         }
-        # TODO qqq PICKUP get scores, maybe get unprocessedLevelIds before this and remove as they are processed
         $scores = $unprocessedScoresByLevel[$levelInfo['ID']]
         foreach ($score in $scores) {
             $prefix = $DifficultyRankMap[[Math]::Floor($score.difficulty)]
