@@ -7,6 +7,8 @@ The script currently requires one of:
 * OR Windows PowerShell 5 with [.NET Framework 4.6+](https://dotnet.microsoft.com/download/dotnet-framework)
   * You can check `$PSVersionTable.CLRVersion`
 
+Assume 0.5-1GB of peak memory usage per thread. Adjust the `-Threads` parameter if you would like, though it caps out at 8.
+
 You may have to run the below command to allow scripts to run:
 ```powershell
 PS> Set-ExecutionPolicy RemoteSigned

@@ -470,3 +470,5 @@ else {
     }
 }
 #endregion
+
+[GC]::Collect()
