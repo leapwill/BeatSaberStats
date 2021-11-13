@@ -231,7 +231,6 @@ function ForEach-Thread {
         $levelInfo['Environment'] = $levelInfoSrc._environmentName
         Write-Debug "T$ThreadId info done at `t$($Stopwatch.ElapsedMilliseconds)"
         [double]$tenSecondsInBeats = $levelInfo['BPM'] / 6
-        $np10sPredicate = [Predicate[double]]{param($t) $t -lt $note._time - $tenSecondsInBeats}
 
         # for each characteristic (e.g. standard, one-hand, 90deg, lawless, etc.)
         for ($characteristicIdx = 0; $characteristicIdx -lt $levelInfoSrc._difficultyBeatmapSets.Length; $characteristicIdx++) {
@@ -259,20 +258,22 @@ function ForEach-Thread {
                     $levelInfo['~Duration'] = [Math]::Max($levelInfo['~Duration'], $notesDurationSeconds)
 
                     # highest 10-second NPS
-                    # TODO use 2 indexes to look at original array instead of a new one?
                     [double]$highestSoFar = 0
-                    $notes = New-Object 'System.Collections.Generic.List[double]'
-                    foreach ($note in $beatmapNotes) {
-                        $notes.Add($note._time)
-                        $notes.RemoveAll($np10sPredicate) >$null
-                        $notesNps = $notes.Count
+                    [int]$startIdx = 0
+                    [int]$endIdx = 0
+                    while ($endIdx -lt $beatmapNotes.Length - 1) {
+                        # write-host "len=$($beatmapNotes.Length) endIdx=$endIdx" #qqq
+                        $limit = $beatmapNotes[$startIdx]._time + $tenSecondsInBeats
+                        while ($endIdx -le $beatmapNotes.Length - 2 -and $beatmapNotes[$endIdx + 1]._time -le $limit) {
+                            $endIdx++
+                        }
+                        $notesNps = $endIdx - $startIdx + 1
                         if ($notesNps -gt $highestSoFar) {
                             $highestSoFar = $notesNps
                         }
+                        $startIdx++
                     }
                     $levelInfo["$prefix NP10S"] = [Math]::Round($highestSoFar / 10, 2)
-
-
                 }
             }
         }
